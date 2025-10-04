@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dream Centre - CPT Typing Exam (Real Mode)</title>
+  <style>
+    :root{--brand:#2563eb;--bg-overlay:rgba(255,255,255,0.96)}
+    html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
+    body{
+      background: url('https://i.ibb.co/1Y6CktyM') center/cover fixed no-repeat;
+      display:flex;align-items:center;justify-content:center;padding:24px;
+    }
+    .container{
+      width:100%;max-width:980px;background:var(--bg-overlay);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.2);padding:20px;position:relative;
+    }
+    header{display:flex;align-items:center;gap:16px;margin-bottom:10px}
+    .logo{width:64px;height:64px;border-radius:8px;background:rgba(37,99,235,0.1);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--brand)}
+    h1{margin:0;font-size:20px}
+    .brand{margin:0;color:var(--brand);font-weight:700}
+    .controls{display:flex;gap:10px;align-items:center;margin:12px 0;flex-wrap:wrap}
+    .btn{background:var(--brand);color:white;border:none;padding:8px 14px;border-radius:8px;cursor:pointer}
+    .btn.ghost{background:transparent;color:var(--brand);border:1px solid rgba(37,99,235,0.12)}
+    #examArea{display:none}
+
+    #passage{background:#f8fafc;padding:16px;border-radius:8px;line-height:1.7;font-size:16px;user-select:none;margin-bottom:12px;white-space:pre-wrap;max-height:240px;overflow:auto}
+    #typed{display:none} /* hide inline highlighted passage to keep interface realistic */
+
+    /* Larger typing box */
+    #input{
+      width:100%;
+      min-height:320px; /* increased size */
+      padding:18px;
+      border-radius:8px;
+      border:1px solid #e6eefb;
+      resize:none;
+      font-size:16px;
+      line-height:1.6;
+      outline:none;
+      background:#ffffff;
+      caret-color:#111; /* ensure caret is visible but no extra highlight */
+    }
+    /* Prevent selection highlight inside the input to keep it visually plain */
+    #input::selection{ background: transparent; }
+    #input:focus{ outline:none; box-shadow:none; }
+
+    .stats{display:flex;gap:18px;align-items:center;margin-top:12px;justify-content:space-between}
+    .stat{font-size:14px}
+    .timer{font-weight:700;font-size:20px;color:#0f172a}
+
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;color:white}
+    .modal{background:rgba(0,0,0,0.7);padding:18px;border-radius:8px;max-width:680px}
+
+    .final{display:none;margin-top:12px;background:#eef2ff;padding:12px;border-radius:8px}
+    .infractions{color:#b91c1c;font-weight:700}
+
+    footer{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+
+    /* Prevent text selection shortcuts visually */
+    *{ -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
+    textarea{user-select:text}
+  </style>
+</head>
+<body>
+  <div class="container" id="container">
+    <header>
+      <div class="logo">DC</div>
+      <div>
+        <div class="brand">Dream Centre</div>
+        <h1>CPT Typing Exam — Real Exam Mode</h1>
+      </div>
+    </header>
+
+    <div class="intro">
+      <p><strong>Instructions (must read)</strong>: The exam will run in fullscreen. Do not switch tabs, open devtools, copy/paste, or try to leave fullscreen — such actions are monitored and count as infractions. You may use Backspace to correct mistakes. Pasting or cutting text is blocked. After the timer ends the result will be shown. After selecting a duration, press <strong>Enter</strong> in the typing box to officially start the timer and reveal the passage.</p>
+    </div>
+
+    <div class="controls">
+      <button class="btn" onclick="prepareExam(5)">5 Minutes</button>
+      <button class="btn" onclick="prepareExam(10)">10 Minutes</button>
+      <button class="btn" onclick="prepareExam(15)">15 Minutes</button>
+      <button class="btn ghost" onclick="downloadSample()">Download Sample Results (Demo)</button>
+      <button class="btn ghost" onclick="runSelfTest()">Run Self-Test</button>
+    </div>
+
+    <div id="examArea">
+      <div id="passage" aria-hidden="true"></div>
+      <div id="typed" aria-live="polite"></div>
+      <textarea id="input" placeholder="Press Enter to begin..." aria-label="Typing input" disabled></textarea>
+
+      <div class="stats">
+        <div class="stat">WPM: <span id="wpm">0</span></div>
+        <div class="stat">Accuracy: <span id="accuracy">0%"</span></div>
+        <div class="stat">Errors: <span id="errors">0</span></div>
+        <div class="stat">Infractions: <span id="infractions">0</span></div>
+        <div class="timer">Time Left: <span id="timer">00:00</span></div>
+      </div>
+
+      <div class="final" id="finalReport">
+        <h3>Final Report</h3>
+        <p id="reportSummary"></p>
+        <pre id="detailedComparison" style="white-space:pre-wrap;background:#fff;padding:10px;border-radius:6px;max-height:300px;overflow:auto"></pre>
+        <div style="margin-top:8px">
+          <button class="btn" onclick="downloadResults()">Download Results (CSV)</button>
+          <button class="btn ghost" onclick="exitFullscreenMode()">Exit Exam Mode</button>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div style="font-size:13px;color:#475569">Dream Centre — CPT Typing Exam</div>
+      <div style="font-size:13px;color:#475569">Built for realistic exam simulation</div>
+    </footer>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h3>Exam Locked</h3>
+      <p id="overlayMsg">You left the exam window. Please return. Continued infractions will end the exam.</p>
+      <div style="margin-top:12px"><button class="btn" onclick="closeOverlay()">Return to Exam</button></div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- CONFIG ----------
+    const PASSAGES = [
+      "The development of technology has dramatically transformed the way people communicate, work, and live. From the invention of the printing press to the rise of the internet, each advancement has brought both opportunities and challenges. In modern society, individuals are expected to type quickly and accurately in order to keep up with the demands of a fast-paced environment. Employers value employees who can process information efficiently and adapt to digital tools. To achieve proficiency, consistent practice and a focus on accuracy are just as important as speed. Those who invest time in honing their typing skills often find themselves better prepared for academic, professional, and personal success.",
+      "Education plays a vital role in shaping not only careers but also the character of individuals. Reading and writing are foundational skills, and typing has now become just as essential in the digital world. A strong command of written communication allows people to express their ideas clearly, share knowledge, and collaborate effectively. Typing tests are used in various competitive exams to assess the ability of candidates to manage time while maintaining accuracy. A passage may appear simple at first glance, but the real challenge lies in typing it flawlessly under time constraints. Continuous learning, practice, and persistence can turn an average typist into a highly skilled one.",
+      "Discipline and consistency are the cornerstones of personal growth and achievement. Just as athletes train daily to improve performance, those who wish to excel in typing must dedicate time to structured practice. Typing is not merely about pressing keys on a keyboard; it is about coordination, rhythm, and focus. Random mistakes may occur due to haste, but accuracy can be achieved by maintaining concentration and resisting the urge to rush. Over time, correct posture, finger placement, and muscle memory all contribute to higher speed and reduced fatigue. In exams, these qualities often determine who succeeds under pressure and who struggles to complete the task.",
+      "The importance of digital literacy cannot be overstated in the twenty-first century. Governments, businesses, and educational institutions all rely on typed communication to function smoothly. Whether drafting an official report, filling out forms, or composing an email, typing efficiency plays a crucial role. As the volume of digital information increases, so does the demand for individuals who can manage it effectively. For students preparing for typing exams, the key is to balance speed with precision. Practicing with long passages not only prepares them for real-world scenarios but also builds endurance, which is necessary for sustained performance over extended periods of time.",
+      "Language is a living organism that evolves with the people who use it. New words appear while old words sometimes fade away. The creativity of writers, poets, and everyday speakers drives this evolution. For typists, exposure to varied vocabulary improves adaptability and reduces the cognitive load when unfamiliar words appear during timed exams. Reading widely — from technical articles to classic literature — helps build a mental library of word shapes and rhythms. With this preparation, the act of typing becomes less about thinking of each letter and more about letting muscle memory and practiced patterns take over.",
+      "A well-constructed sentence balances clarity, rhythm, and meaning. When typing, taking short, calm breaths and maintaining an even pace helps avoid hurried errors. Accurate typing is not a sprint but a controlled, rhythmic motion. Typing tests often intentionally include punctuation, long words, and tricky letter combinations to separate speed from true proficiency. Candidates who pay attention to punctuation and spacing typically achieve higher accuracy scores. These small habits — correct spacing after punctuation, consistent capitalization — add up and create a professional foundation for all typed communication.",
+      "In many competitive examinations, the difference between passing and failing may come down to a handful of characters. This is why monitoring both speed and accuracy is vital. Some candidates type extremely fast but accumulate errors that nullify their advantage. Others type carefully but finish with low WPM. The ideal approach is to find a personal balance: speed that does not sacrifice accuracy. Structured practice sessions, where one alternates between speed drills and accuracy-focused exercises, are particularly effective at improving overall performance.",
+      "Time management underlies most exam success. When taking a long exam, it helps to scan the passage quickly, identify potentially difficult words, and decide on a pacing strategy. Some test-takers choose to type steadily throughout; others break the passage into manageable chunks and focus on one chunk at a time. Both strategies can be effective when applied consistently. What matters most is awareness: knowing when to accelerate and when to slow down to preserve accuracy.",
+      "Typing under pressure is also a psychological exercise. Stress and anxiety can cause the hands to tense, increasing the chance of typos. Techniques such as deep breathing, positive self-talk, and micro-breaks (when allowed) can help preserve calm and maintain steady typing. The mind-to-hand connection is powerful: when the brain anticipates the next word, the fingers can move almost automatically. Training this anticipation through repeated practice of common word pairs and sentence structures helps build speed that remains accurate under timed conditions.",
+      "Exam proctors sometimes introduce a range of challenges to emulate real-world typing demands: punctuation-dense texts, numerical data, capitalization rules, and foreign names. Familiarity with these patterns reduces surprises during the exam. Candidates should practice with varied passages that include numbers, abbreviations, and punctuation. Doing so builds mental flexibility and prepares typists for the full spectrum of challenges they may encounter during a real CPT typing exam.",
+      "The role of ergonomic setup should not be overlooked. Good chair height, wrist alignment, and keyboard placement all reduce fatigue and make long typing sessions more sustainable. An uncomfortable setup leads to early fatigue, slower speed, and more errors. Part of realistic exam preparation is to practice in a comfortable environment that mimics the potential exam conditions — proper lighting, minimal distractions, and a keyboard that the candidate has used during practice sessions.",
+      "While online practice is convenient, nothing fully replicates an official exam environment where distractions can be limited and proctoring enforced. Therefore, timed, locked practice sessions are useful to adapt to the discipline required. These sessions help build tolerance for the monotony of long passages and increase the ability to remain focused even when fatigued. Over time, the combination of physical preparation and mental rehearsal creates reliable performance in exam settings.",
+      "Successful typists view mistakes not as failures but as data points. Reviewing errors after each practice session helps identify recurring weaknesses: particular letter combinations, punctuation errors, or spacing mistakes. Targeted drills to remedy these weak spots accelerate progress. With a plan that alternates between focused correction and speed-building, a candidate can steadily close the gap between their current ability and the performance level required to pass rigorous typing exams.",
+      "Finally, confidence is built through repetition and reflection. Track progress across practice sessions, celebrate small improvements, and treat each practice as both training and assessment. By approaching typing as a skill that grows with deliberate practice, candidates can transform initial struggles into consistent proficiency that stands up in real exam conditions."
+    ];
+
+    const MAX_INFRACTIONS = 3; // number of allowed infractions before auto-fail
+
+    // ---------- STATE ----------
+    let selectedMinutes = 15;
+    let timeLeft = 0;
+    let timerInterval = null;
+    let startTime = null;
+    let passageText = '';
+    let infractions = 0;
+    let typedHistory = '';
+    let focusLostCount = 0;
+    let keyViolationCount = 0;
+    let examPrepared = false;
+    let examStarted = false;
+    let inputHandlersAttached = false;
+    let securityListenersAttached = false;
+
+    const passageEl = document.getElementById('passage');
+    const typedEl = document.getElementById('typed');
+    const inputEl = document.getElementById('input');
+    const wpmEl = document.getElementById('wpm');
+    const accEl = document.getElementById('accuracy');
+    const errEl = document.getElementById('errors');
+    const infraEl = document.getElementById('infractions');
+    const timerEl = document.getElementById('timer');
+    const overlay = document.getElementById('overlay');
+    const overlayMsg = document.getElementById('overlayMsg');
+    const finalReport = document.getElementById('finalReport');
+    const reportSummary = document.getElementById('reportSummary');
+    const detailedComparison = document.getElementById('detailedComparison');
+
+    // ---------- UTIL ----------
+    function escapeHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    // Cross-browser request fullscreen (returns a Promise)
+    function enterFullscreen(){
+      const el = document.documentElement;
+      if(el.requestFullscreen) return el.requestFullscreen();
+      if(el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
+      if(el.mozRequestFullScreen) return el.mozRequestFullScreen();
+      if(el.msRequestFullscreen) return el.msRequestFullscreen();
+      return Promise.resolve();
+    }
+
+    // Exit fullscreen
+    function exitFullscreenMode(){
+      if(document.exitFullscreen) document.exitFullscreen();
+      if(document.webkitExitFullscreen) document.webkitExitFullscreen && document.webkitExitFullscreen();
+      // hide UI
+      finalReport.style.display='none';
+      document.getElementById('examArea').style.display='none';
+      examPrepared = false; examStarted = false;
+    }
+
+    // ---------- PASSAGE ----------
+    function pickPassage(){
+      return PASSAGES[Math.floor(Math.random()*PASSAGES.length)];
+    }
+
+    // ---------- EXAM FLOW ----------
+    async function prepareExam(minutes){
+      selectedMinutes = minutes;
+      try{ await enterFullscreen(); }catch(e){ console.warn('Fullscreen not granted or failed',e); }
+
+      infractions = 0; focusLostCount = 0; keyViolationCount = 0;
+      document.getElementById('examArea').style.display = 'block';
+      passageEl.innerText = '';
+      typedEl.innerHTML = '';
+      inputEl.value = '';
+      inputEl.placeholder = 'Press Enter to begin...';
+      inputEl.disabled = false;
+      inputEl.focus();
+      examPrepared = true;
+      examStarted = false;
+
+      // attach handlers so Enter will start the exam
+      attachInputHandlers();
+      attachSecurityListeners();
+    }
+
+    function startExam(){
+      if(!examPrepared || examStarted) return;
+      passageText = pickPassage();
+      passageEl.innerText = passageText;
+      timeLeft = selectedMinutes*60;
+      startTime = Date.now();
+      clearInterval(timerInterval);
+      timerInterval = setInterval(updateTimer,1000);
+      examStarted = true;
+      inputEl.placeholder = 'Start typing here...';
+      inputEl.focus();
+    }
+
+    function updateTimer(){
+      const mins = Math.floor(timeLeft/60);
+      const secs = timeLeft%60;
+      timerEl.innerText = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+      if(timeLeft<=0){
+        endExam();
+        return;
+      }
+      timeLeft--;
+    }
+
+    function endExam(reason){
+      clearInterval(timerInterval);
+      removeInputHandlers();
+      removeSecurityListeners();
+      inputEl.disabled = true;
+      document.getElementById('finalReport').style.display = 'block';
+      if(reason) reportSummary.innerText = `Exam ended: ${reason}`;
+      else reportSummary.innerText = 'Exam completed: Time finished.';
+      const result = computeResults();
+      renderFinal(result);
+    }
+
+    // ---------- INPUT HANDLERS (named so we can remove them) ----------
+    function preventPaste(e){ e.preventDefault(); markInfraction('Paste/Cut/Copy is not allowed'); }
+
+    function inputKeydownHandler(e){
+      // If exam not started, Enter starts the exam
+      if(!examStarted && e.key === 'Enter'){
+        e.preventDefault();
+        startExam();
+        return;
+      }
+      keyDownMonitor(e);
+    }
+
+    function onInput(e){
+      if(!examStarted) return; // ignore typing before official start
+      typedHistory = inputEl.value;
+      updateDisplay();
+      updateStats();
+    }
+
+    function attachInputHandlers(){
+      if(inputHandlersAttached) return;
+      inputEl.addEventListener('paste', preventPaste);
+      inputEl.addEventListener('cut', preventPaste);
+      inputEl.addEventListener('copy', preventPaste);
+      inputEl.addEventListener('keydown', inputKeydownHandler);
+      inputEl.addEventListener('input', onInput);
+      window.addEventListener('blur', onFocusLost);
+      document.addEventListener('visibilitychange', onVisibilityChange);
+      inputHandlersAttached = true;
+    }
+
+    function removeInputHandlers(){
+      if(!inputHandlersAttached) return;
+      inputEl.removeEventListener('paste', preventPaste);
+      inputEl.removeEventListener('cut', preventPaste);
+      inputEl.removeEventListener('copy', preventPaste);
+      inputEl.removeEventListener('keydown', inputKeydownHandler);
+      inputEl.removeEventListener('input', onInput);
+      window.removeEventListener('blur', onFocusLost);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      inputHandlersAttached = false;
+    }
+
+    // ---------- DISPLAY & STATS ----------
+    function updateDisplay(){
+      const typed = typedHistory || '';
+      // We DO NOT highlight the passage with a cursor or current position to keep UI realistic.
+      // However we still count errors (used for scoring). We'll compute errors internally but not show inline highlights.
+      let errors = 0;
+      for(let i=0;i<Math.min(typed.length, passageText.length); i++){
+        if(typed[i] !== passageText[i]) errors++;
+      }
+      // Account for extra characters typed beyond passage length as errors
+      if(typed.length > passageText.length) errors += typed.length - passageText.length;
+      errEl.innerText = errors;
+    }
+
+    function updateStats(){
+      const typed = (typedHistory || '').trim();
+      const words = typed.length ? typed.split(/\s+/).filter(Boolean).length : 0;
+      const elapsedMinutes = Math.max((Date.now()-startTime)/60000, 0.0001);
+      const wpm = Math.round(words/elapsedMinutes);
+      const errors = parseInt(errEl.innerText || '0',10);
+      const accuracy = (typed.length>0) ? Math.max(0, Math.round(((typed.length-errors)/typed.length)*100)) : 0;
+      wpmEl.innerText = isFinite(wpm)? wpm : 0;
+      accEl.innerText = accuracy + '%';
+      infraEl.innerText = infractions + keyViolationCount + focusLostCount;
+    }
+
+    function computeResults(){
+      const typed = typedHistory || '';
+      const errors = parseInt(errEl.innerText || '0',10);
+      const elapsedMinutes = Math.max((Date.now()-startTime)/60000, 0.0001);
+      const words = typed.length ? typed.trim().split(/\s+/).filter(Boolean).length : 0;
+      const wpm = Math.round(words/elapsedMinutes);
+      const accuracy = typed.length>0 ? Math.max(0, Math.round(((typed.length-errors)/typed.length)*100)) : 0;
+      return {wpm, accuracy, errors, infractions: infractions+keyViolationCount+focusLostCount, typed, passage: passageText};
+    }
+
+    function renderFinal(result){
+      reportSummary.innerText = `WPM: ${result.wpm} — Accuracy: ${result.accuracy}% — Errors: ${result.errors} — Infractions: ${result.infractions}`;
+      const comp = buildComparison(result.passage, result.typed);
+      detailedComparison.innerText = comp;
+    }
+
+    function buildComparison(passage, typed){
+      let out = '';
+      const length = Math.max(passage.length, typed.length);
+      for(let i=0;i<length;i++){
+        const p = passage[i] || '';
+        const t = typed[i] || '';
+        const mark = (p===t) ? 'OK' : 'ERR';
+        out += `${String(i+1).padStart(4,' ')} | passage: '${p}' | typed: '${t}' | ${mark}\n`;
+      }
+      return out;
+    }
+
+    // ---------- SECURITY & PROCTORING ----------
+    function keyDownMonitor(e){
+      // block common cheating keys: Ctrl+V, Ctrl+C, Ctrl+X, Ctrl+S, F12
+      if(e.ctrlKey || e.metaKey){
+        const forbidden = ['v','c','x','s','p'];
+        const key = (e.key||'').toLowerCase();
+        if(forbidden.includes(key)){
+          e.preventDefault();
+          markInfraction(`Blocked shortcut: ${e.ctrlKey? 'Ctrl':'Meta'}+${key.toUpperCase()}`);
+          keyViolationCount++;
+          infraEl.innerText = infractions + keyViolationCount + focusLostCount;
+          if(infractions+keyViolationCount+focusLostCount >= MAX_INFRACTIONS) endExam('Too many infractions (auto-fail)');
+        }
+      }
+
+      if(e.key === 'Tab' || e.key === 'F12'){
+        markInfraction(`Blocked key: ${e.key}`);
+        e.preventDefault();
+      }
+      // allow Backspace
+    }
+
+    function contextMenuBlock(e){ e.preventDefault(); markInfraction('Context menu blocked'); }
+    function onFullscreenChange(e){ if(!document.fullscreenElement){ markInfraction('Exited fullscreen'); showOverlay('You left fullscreen — return immediately.'); } }
+    function onFocusLost(e){ focusLostCount++; infraEl.innerText = infractions + keyViolationCount + focusLostCount; markInfraction('Window lost focus'); if(infractions+keyViolationCount+focusLostCount >= MAX_INFRACTIONS) endExam('Too many infractions (auto-fail)'); }
+    function onVisibilityChange(e){ if(document.visibilityState !== 'visible'){ focusLostCount++; infraEl.innerText = infractions + keyViolationCount + focusLostCount; showOverlay('Document hidden or switched tab. Return immediately.'); if(infractions+keyViolationCount+focusLostCount >= MAX_INFRACTIONS) endExam('Too many infractions (auto-fail)'); } }
+
+    function markInfraction(msg){ infractions++; infraEl.innerText = infractions + keyViolationCount + focusLostCount; console.warn('Infraction:',msg); if(infractions+keyViolationCount+focusLostCount >= MAX_INFRACTIONS) endExam('Too many infractions (auto-fail)'); }
+
+    function showOverlay(msg){ overlayMsg.innerText = msg; overlay.style.display = 'flex'; }
+    function closeOverlay(){ overlay.style.display = 'none'; inputEl.focus(); }
+
+    function attachSecurityListeners(){
+      if(securityListenersAttached) return;
+      document.addEventListener('contextmenu', contextMenuBlock);
+      document.addEventListener('fullscreenchange', onFullscreenChange);
+      window.addEventListener('blur', onFocusLost);
+      document.addEventListener('visibilitychange', onVisibilityChange);
+      document.addEventListener('keydown', devtoolsKeydown);
+      securityListenersAttached = true;
+    }
+
+    function removeSecurityListeners(){
+      if(!securityListenersAttached) return;
+      document.removeEventListener('contextmenu', contextMenuBlock);
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      window.removeEventListener('blur', onFocusLost);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      document.removeEventListener('keydown', devtoolsKeydown);
+      securityListenersAttached = false;
+    }
+
+    function devtoolsKeydown(e){
+      if(e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key==='I' || e.key==='J'))){
+        e.preventDefault();
+        markInfraction('Attempted to open devtools');
+      }
+    }
+
+    // ---------- DOWNLOAD / EXPORT ----------
+    function downloadResults(){
+      const res = computeResults();
+      const rows = [ ['WPM','Accuracy','Errors','Infractions','Duration(min)'], [res.wpm, res.accuracy, res.errors, res.infractions, selectedMinutes] ];
+      let csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv],{type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'typing_results.csv'; a.click(); URL.revokeObjectURL(url);
+    }
+    function downloadSample(){
+      const sample = 'WPM,Accuracy,Errors,Infractions,Duration\n45,92,12,0,15\n';
+      const b = new Blob([sample],{type:'text/csv'});
+      const u = URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='sample_results.csv'; a.click(); URL.revokeObjectURL(u);
+    }
+
+    // ---------- SELF-TEST (basic test cases) ----------
+    function runSelfTest(){
+      // Basic non-invasive checks
+      const tests = [];
+      tests.push({name:'passages-available', ok: Array.isArray(PASSAGES) && PASSAGES.length>0});
+      const p = pickPassage();
+      tests.push({name:'pickPassage-returns-string', ok: typeof p === 'string' && p.length>0});
+
+      // Test prepareExam -> examPrepared
+      const prev = {examPrepared, examStarted};
+      prepareExam(1);
+      const preparedOk = examPrepared === true && examStarted === false;
+      tests.push({name:'prepareExam-sets-prepared', ok: preparedOk});
+      // cleanup
+      removeInputHandlers(); removeSecurityListeners(); exitFullscreenMode(); examPrepared=false; examStarted=false;
+
+      // Simulate typed text and timing for computeResults
+      passageText = PASSAGES[0];
+      typedHistory = passageText.slice(0,60);
+      startTime = Date.now() - 60000; // 1 minute ago
+      const res = computeResults();
+      const okWpm = typeof res.wpm === 'number' && res.wpm > 0;
+      tests.push({name:'computeResults-basic', ok: okWpm, result: res});
+
+      // restore
+      typedHistory = '';
+      passageText = '';
+
+      alert('Self-test results:\n' + tests.map(t=> `${t.name}: ${t.ok ? 'PASS' : 'FAIL'}` + (t.result ? (' -> ' + JSON.stringify(t.result)) : '')).join('\n'));
+    }
+
+    // ---------- CLEANUP ON UNLOAD ----------
+    window.addEventListener('beforeunload', function(e){ if(document.fullscreenElement){ e.preventDefault(); e.returnValue='Are you sure? Leaving will end the exam.'; } });
+
+    // Prevent developer tools key combos (best-effort detection only)
+    document.addEventListener('keydown', function(e){ if(e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key==='I' || e.key==='J'))){ e.preventDefault(); markInfraction('Attempted to open devtools'); } });
+
+  </script>
+</body>
+</html>
